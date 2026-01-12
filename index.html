@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MY Weather Data</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --navy: #0f172a; 
+            --danger: #ef4444; 
+            --warning: #f59e0b; 
+            --teal: #14b8a6; 
+            --dark-bg: #020617; 
+            --card-bg: #1e293b;
+            --good: #10b981; 
+            --text: #f1f5f9;
+            --border: #334155;
+            --glow-cyan: #06b6d4;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--dark-bg); margin: 0; padding: 10px; font-size: 13px; color: var(--text); overflow-x: hidden; width: 100vw; height: 100vh; }
+        
+        .container { max-width: 1250px; margin: auto; background: var(--card-bg); padding: clamp(10px, 3vw, 20px); border-radius: 12px; box-shadow: 0 10px 50px rgba(0,0,0,0.5); position: relative; z-index: 5; border: 1px solid var(--border); }
+        header { text-align: center; border-bottom: 2px solid var(--teal); margin-bottom: 20px; padding-bottom: 10px; }
+        h1 { color: var(--teal); margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .table-container { width: 100%; overflow-x: auto; max-height: 400px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; background: rgba(15, 23, 42, 0.5); }
+        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+        thead th { position: sticky; top: 0; z-index: 10; background: var(--navy); border-bottom: 1px solid var(--border); }
+
+        .verif-memo { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--teal); color: #cbd5e1; padding: 12px; border-radius: 6px; margin-bottom: 15px; font-size: 11px; text-align: center; line-height: 1.5; }
+        .setup-panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); align-items: end; }
+        label { font-size: 10px; font-weight: bold; color: var(--teal); display: block; margin-bottom: 4px; text-transform: uppercase; }
+        
+        select, input, button { width: 100%; padding: 8px; border-radius: 6px; border: 1.5px solid var(--border); font-size: 12px; height: 38px; background: #0f172a; color: white; transition: 0.3s; outline: none; }
+        input[type="date"] { border-color: var(--glow-cyan); box-shadow: 0 0 5px rgba(6, 182, 212, 0.3); color-scheme: dark; }
+        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.8) sepia(100%) saturate(1000%) hue-rotate(140deg); cursor: pointer; transform: scale(1.2); }
+        input[type="date"]:hover, input[type="date"]:focus { box-shadow: 0 0 15px var(--glow-cyan); border-color: #fff; }
+        
+        .btn-run { background: var(--teal); color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-export { background: #059669; color: white; border: none; font-weight: bold; cursor: pointer; }
+
+        th { padding: 12px 10px; text-align: left; cursor: pointer; user-select: none; font-size: 11px; color: var(--teal); }
+        td { padding: 10px; border-bottom: 1px solid var(--border); font-size: 12px; color: #cbd5e1; }
+
+        .event-badge { padding: 4px 8px; border-radius: 10px; font-weight: bold; font-size: 9px; text-transform: uppercase; display: inline-block; width: 95px; text-align: center; }
+        .typhoon { background: #7f1d1d; color: #fecaca; }
+        .monsoon { background: #0c4a6e; color: #bae6fd; }
+        .thunderstorm { background: #78350f; color: #fef3c7; }
+        .normal { background: #334155; color: #cbd5e1; }
+        .good-day { background: #064e3b; color: #d1fae5; }
+        .latency { background: #1e293b; color: #94a3b8; border: 1px dashed #64748b; }
+
+        .summary-wrapper { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 30px; }
+        .summary-card { background: var(--navy); border: 1px solid var(--border); border-radius: 12px; padding: 15px; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 15px; }
+        .stat-item { background: rgba(0,0,0,0.2); padding: 8px; border-radius: 6px; text-align: center; }
+        .stat-val { font-size: 14px; font-weight: bold; color: var(--teal); }
+
+        @media screen and (max-width: 768px) {
+            .setup-panel { grid-template-columns: 1fr; }
+            .container { padding: 15px; border-radius: 0; }
+            .summary-wrapper { grid-template-columns: 1fr; }
+        }
+
+        #weather-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 9999; transition: all 1.5s ease-in-out; opacity: 0; }
+        .sun-active { opacity: 1 !important; }
+        .sun-source { position: absolute; top: -50px; left: -50px; width: 250px; height: 250px; background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,200,0,0.4) 30%, transparent 70%); filter: blur(10px); animation: sunGlow 5s infinite alternate; }
+        .sun-beams { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; background: repeating-conic-gradient(from 0deg at 0% 0%, transparent 0deg, rgba(255,255,255,0.03) 10deg, transparent 20deg); pointer-events: none; }
+        .rain-active { opacity: 1 !important; background-image: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%), radial-gradient(2px 25px at 15% 15%, rgba(255,255,255,0.4), transparent), radial-gradient(2px 25px at 45% 45%, rgba(255,255,255,0.4), transparent), radial-gradient(2px 25px at 75% 75%, rgba(255,255,255,0.4), transparent); background-size: 100% 100%, 300px 300px, 300px 300px, 300px 300px; animation: heavyRain 0.3s linear infinite; }
+        @keyframes sunGlow { from { transform: scale(1); opacity: 0.8; } to { transform: scale(1.1); opacity: 1; } }
+        @keyframes heavyRain { from { background-position: 0 0, 0 0, 0 0, 0 0; } to { background-position: 0 0, 50px 600px, 50px 600px, 50px 600px; } }
+    </style>
+</head>
+<body>
+
+<div id="weather-overlay">
+    <div id="sun-elements" style="display:none;">
+        <div class="sun-source"></div>
+        <div class="sun-beams"></div>
+    </div>
+</div>
+
+<div class="container">
+    <header>
+        <h1>MY Weather Data</h1>
+        <div style="font-size:11px; color:#94a3b8;">Maritime Intelligence & Analytics</div>
+    </header>
+
+    <div class="verif-memo">
+        <b>OFFICIAL NOTICE:</b> Data synthesized from <b>NASA POWER</b>. Records subject to a 120-hour buffer to ensure integrity. Abnormal readings (-999) are classified as LATENCY.
+    </div>
+
+    <div id="status">Ready.</div>
+
+    <div class="setup-panel">
+        <div><label>Sector</label>
+            <select id="loc">
+                <optgroup label="Priority Islands">
+                    <option value="Layang_Layang">Layang-Layang (7.37°N, 113.84°E)</option>
+                    <option value="Labuan">Labuan Island (5.28°N, 115.24°E)</option>
+                </optgroup>
+                <optgroup label="East Malaysia">
+                    <option value="Sabah_West">Sabah: West Coast (KK)</option>
+                    <option value="Sabah_East">Sabah: East Coast (Sandakan)</option>
+                    <option value="Sarawak_East">Sarawak: East (Miri)</option>
+                    <option value="Sarawak_West">Sarawak: West (Kuching)</option>
+                </optgroup>
+                <optgroup label="West Malaysia">
+                    <option value="West_Central">West: Central (Port Klang)</option>
+                    <option value="West_North">West: North (Penang)</option>
+                    <option value="West_EastCoast">West: East Coast (Kuantan)</option>
+                </optgroup>
+            </select>
+        </div>
+        <div><label>Start Date</label><input type="date" id="start"></div>
+        <div><label>End Date</label><input type="date" id="end"></div>
+        <button class="btn-run" onclick="fetchData()">Run Analysis</button>
+        <button class="btn-export" onclick="exportCSV()">CSV Export</button>
+    </div>
+
+    <div class="table-container">
+        <table id="weatherTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)">Date</th>
+                    <th onclick="sortTable(1)">Class</th>
+                    <th onclick="sortTable(2)">Wave</th>
+                    <th onclick="sortTable(3)">Wind</th>
+                    <th onclick="sortTable(4)">Rain</th>
+                    <th onclick="sortTable(5)">Press</th>
+                    <th>Sat</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div id="summaryDisplay" class="summary-wrapper" style="display:none;">
+        <div class="summary-card">
+            <h3 style="color:var(--teal)">Distribution</h3>
+            <div style="height: 250px;"><canvas id="summaryPieChart"></canvas></div>
+        </div>
+        <div class="summary-card">
+            <h3 style="color:var(--teal)">Summary</h3>
+            <div id="briefingText" style="line-height: 1.6; color: #cbd5e1; font-size: 12px;"></div>
+            <div class="stat-grid">
+                <div class="stat-item"><span class="stat-label">Max Wave</span><span id="statWave" class="stat-val">-</span></div>
+                <div class="stat-item"><span class="stat-label">Peak Wind</span><span id="statWind" class="stat-val">-</span></div>
+                <div class="stat-item"><span class="stat-label">Haz Days</span><span id="statHaz" class="stat-val" style="color:var(--danger)">-</span></div>
+                <div class="stat-item"><span class="stat-label">Total Days</span><span id="statDays" class="stat-val">-</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const regions = { 
+    "Layang_Layang": { lat: 7.37, lon: 113.84 }, 
+    "Labuan": { lat: 5.28, lon: 115.24 }, 
+    "Sabah_West": { lat: 5.98, lon: 116.07 }, 
+    "Sabah_East": { lat: 5.84, lon: 118.11 },
+    "Sarawak_East": { lat: 4.39, lon: 113.99 },
+    "Sarawak_West": { lat: 1.55, lon: 110.33 },
+    "West_Central": { lat: 3.14, lon: 101.69 },
+    "West_North": { lat: 5.41, lon: 100.33 },
+    "West_EastCoast": { lat: 3.81, lon: 103.32 }
+};
+
+const limitDate = new Date(); limitDate.setDate(limitDate.getDate() - 5);
+const maxDateStr = limitDate.toISOString().split('T')[0];
+document.getElementById('start').max = maxDateStr; document.getElementById('end').max = maxDateStr;
+const dDefault = new Date(limitDate); dDefault.setDate(dDefault.getDate() - 7);
+document.getElementById('start').value = dDefault.toISOString().split('T')[0]; document.getElementById('end').value = maxDateStr;
+
+let chart = null;
+
+function rotateWeather() {
+    const ov = document.getElementById('weather-overlay');
+    const sunEls = document.getElementById('sun-elements');
+    const effects = ['none', 'sun', 'rain'];
+    let idx = 0;
+    setInterval(() => {
+        idx = (idx + 1) % effects.length;
+        ov.classList.remove('sun-active', 'rain-active');
+        sunEls.style.display = 'none';
+        if(effects[idx] === 'sun') { ov.classList.add('sun-active'); sunEls.style.display = 'block'; } 
+        else if (effects[idx] === 'rain') { ov.classList.add('rain-active'); }
+    }, 10000);
+}
+window.addEventListener('DOMContentLoaded', rotateWeather);
+
+async function fetchData() {
+    const log = document.getElementById('status');
+    const tbody = document.getElementById('tableBody');
+    const locKey = document.getElementById('loc').value;
+    const {lat, lon} = regions[locKey];
+    const sDate = document.getElementById('start').value;
+    const eDate = document.getElementById('end').value;
+
+    log.innerText = "🛰️ Syncing Verified NASA Records...";
+    try {
+        const nApi = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=PRECTOTCORR,WS10M_MAX,PS&community=RE&longitude=${lon}&latitude=${lat}&start=${sDate.replace(/-/g,'')}&end=${eDate.replace(/-/g,'')}&format=JSON`;
+        const wApi = `https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lon}&daily=wave_height_max&start_date=${sDate}&end_date=${eDate}&timezone=GMT`;
+        
+        const [nRes, wRes] = await Promise.all([fetch(nApi), fetch(wApi)]);
+        const nJson = await nRes.json(); const wJson = await wRes.json();
+        const nP = nJson.properties.parameter; const wP = wJson.daily;
+        const dates = Object.keys(nP.PRECTOTCORR).sort().reverse();
+        
+        let html = "", stats = { LATENCY: 0, GOOD: 0, NORMAL: 0, STORM: 0, MONSOON: 0, TYPHOON: 0, maxW: 0, maxWind: 0 };
+
+        dates.forEach(d => {
+            const iso = `${d.substring(0,4)}-${d.substring(4,6)}-${d.substring(6,8)}`;
+            const rawWind = nP.WS10M_MAX[d];
+            const rawRain = nP.PRECTOTCORR[d];
+            const rawPress = nP.PS[d];
+            const wIdx = wP.time.indexOf(iso);
+            const rawWave = wIdx !== -1 ? wP.wave_height_max[wIdx] : 0;
+
+            let eName = "NORMAL", eClass = "normal";
+
+            if (rawWind < -900 || rawRain < -900 || rawPress < -900) {
+                eName = "LATENCY"; eClass = "latency";
+            } else {
+                const wind = (rawWind * 3.6).toFixed(1);
+                const rain = rawRain < 1.0 ? 0.0 : rawRain;
+                const wave = parseFloat(rawWave) || 0;
+                if (wave > stats.maxW) stats.maxW = wave;
+                if (parseFloat(wind) > stats.maxWind) stats.maxWind = parseFloat(wind);
+
+                if (wind > 63) { eName = "TYPHOON"; eClass = "typhoon"; }
+                else if (wind >= 40 || wave >= 2.5) { eName = "MONSOON"; eClass = "monsoon"; }
+                else if (rain >= 15) { eName = "STORM"; eClass = "thunderstorm"; }
+                else if (rain === 0) { eName = "GOOD"; eClass = "good-day"; }
+            }
+            stats[eName]++;
+            
+            // EXACT NASA LAYERS ADDED HERE
+            const worldviewUrl = `https://worldview.earthdata.nasa.gov/?v=${lon-4},${lat-4},${lon+4},${lat+4}&t=${iso}&l=VIIRS_SNPP_CorrectedReflectance_TrueColor,IMERG_Precipitation_Rate,Reference_Labels_15m,Coastlines_15m`;
+            
+            html += `<tr><td>${iso}</td><td><span class="event-badge ${eClass}">${eName}</span></td><td>${rawWave < 0 ? 'N/A' : parseFloat(rawWave).toFixed(2)+'m'}</td><td>${rawWind < 0 ? 'N/A' : (rawWind * 3.6).toFixed(1)}</td><td>${rawRain < 0 ? 'N/A' : rawRain.toFixed(1)}</td><td>${rawPress < 0 ? 'N/A' : rawPress.toFixed(1)}</td><td><a href="${worldviewUrl}" target="_blank" style="color:var(--teal)">NASA</a></td></tr>`;
+        });
+        tbody.innerHTML = html;
+        log.innerText = "✅ Analytics Verified";
+        renderSummary(stats);
+    } catch (e) { log.innerText = "❌ Connection Failed."; }
+}
+
+function renderSummary(s) {
+    document.getElementById('summaryDisplay').style.display = 'grid';
+    const hazCount = s.MONSOON + s.TYPHOON;
+    const total = s.LATENCY + s.GOOD + s.NORMAL + s.STORM + s.MONSOON + s.TYPHOON;
+    
+    document.getElementById('briefingText').innerHTML = `Verified analysis of <b>${total} monitored days</b>. Detected <b>${hazCount} hazardous cycles</b> requiring maritime caution. Records show <b>${s.LATENCY} latency markers</b> due to telemetry gaps. Peak sustained wind: <b>${s.maxWind} kph</b>; Max wave height: <b>${s.maxW.toFixed(2)}m</b>.`;
+    document.getElementById('statWave').innerText = s.maxW.toFixed(2) + "m";
+    document.getElementById('statWind').innerText = s.maxWind.toFixed(1) + "kph";
+    document.getElementById('statDays').innerText = total;
+    document.getElementById('statHaz').innerText = hazCount;
+    
+    const ctx = document.getElementById('summaryPieChart').getContext('2d');
+    if(chart) chart.destroy();
+    chart = new Chart(ctx, { 
+        type: 'pie', 
+        data: { 
+            labels: ['GOOD', 'NORMAL', 'STORM', 'MONSOON', 'TYPHOON'], 
+            datasets: [{ 
+                data: [s.GOOD, s.NORMAL, s.STORM, s.MONSOON, s.TYPHOON], 
+                backgroundColor: ['#10b981', '#334155', '#f59e0b', '#0c4a6e', '#ef4444'] 
+            }] 
+        }, 
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: 'white', boxWidth: 12, font: { size: 10 } } } } } 
+    });
+}
+
+function exportCSV() {
+    let csv = ["Date,Classification,Wave(m),Wind(kph),Rain(mm),Pressure(hPa)"];
+    document.querySelectorAll("#tableBody tr").forEach(row => {
+        csv.push(Array.from(row.cells).slice(0, 6).map(td => td.innerText.replace(/[mkph]/g, '')).join(","));
+    });
+    const blob = new Blob([csv.join("\n")], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'Maritime_Weather_Analysis.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+function sortTable(n) {
+    const tbody = document.querySelector("#tableBody");
+    const rows = Array.from(tbody.rows);
+    const isAsc = tbody.dataset.sortOrder === 'asc';
+    rows.sort((a, b) => a.cells[n].innerText.localeCompare(b.cells[n].innerText, undefined, {numeric: true}));
+    if (isAsc) rows.reverse();
+    tbody.dataset.sortOrder = isAsc ? 'desc' : 'asc';
+    rows.forEach(row => tbody.appendChild(row));
+}
+</script>
+</body>
+</html>
